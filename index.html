@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Weekly Meal Plan</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="page-shell">
+      <section class="hero" aria-labelledby="page-title">
+        <img src="assets/weekly-meals.png" alt="Prepared weekly meals on a kitchen counter" class="hero__image">
+        <div class="hero__overlay"></div>
+        <div class="hero__content">
+          <p class="eyebrow">Simple weekly groceries</p>
+          <h1 id="page-title">Weekly Meal Plan</h1>
+          <p class="hero__copy">A low-friction plan built around Greek yogurt bowls, chicken rice bowls, tuna meals, Caesar salads, hummus plates, lentil soup, and simple reset dinners.</p>
+        </div>
+      </section>
+
+      <section class="summary" aria-label="Meal plan summary" id="summary">
+      </section>
+
+      <section class="desktop-plan" aria-label="Weekly meal plan table">
+        <table>
+          <thead>
+            <tr id="meal-table-head"></tr>
+          </thead>
+          <tbody id="meal-table-body"></tbody>
+        </table>
+      </section>
+
+      <section class="mobile-plan" aria-label="Weekly meal plan cards" id="meal-cards">
+      </section>
+    </main>
+    <script src="ingredients.js" defer></script>
+    <script src="meal-plan.js" defer></script>
+    <script src="app.js" defer></script>
+  </body>
+</html>

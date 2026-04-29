@@ -1,0 +1,9 @@
+| Day           | Breakfast                              | Lunch                                                    | Dinner                                                    |
+| ------------- | -------------------------------------- | -------------------------------------------------------- | --------------------------------------------------------- |
+| **Sunday**    | Greek yogurt + banana / berries + nuts | Rotisserie chicken + corn + sauce + salad/veg            | Air-fryer marinated chicken + rice/pita + veg             |
+| **Monday**    | Eggs / boiled eggs + toast, or yogurt  | Rotisserie chicken + corn + sauce in a wrap/bowl         | Canned tuna meal #1                                       |
+| **Tuesday**   | Oatmeal / yogurt + fruit               | Prepped salad kit + protein add-on                       | Air-fryer marinated chicken + veg                         |
+| **Wednesday** | Cottage cheese or yogurt + fruit       | Deli sandwich + fruit/yogurt                             | Canned tuna meal #2                                       |
+| **Thursday**  | Peanut butter toast + banana           | Hummus plate: pita + hummus + veg + eggs/cheese          | Easy grocery meal: lentil soup / bean salad / frozen bowl |
+| **Friday**    | Yogurt + granola + fruit               | Salad kit #2 or leftover deli-style wrap                 | Simple dinner out / frozen meal / eggs + toast            |
+| **Saturday**  | Flexible breakfast                     | Cheap lunch: tuna sandwich, hummus wrap, or eggs + toast | Flexible dinner / grocery reset                           |
