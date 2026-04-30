@@ -4,31 +4,8 @@ const mealTypes = [
   { key: "dinner", label: "Dinner" },
 ];
 
-const allMeals = mealPlan.flatMap((dayPlan) =>
-  mealTypes.map((mealType) => dayPlan.meals[mealType.key]),
-);
-
-const ingredientCount = allMeals.reduce(
-  (count, plannedMeal) => count + plannedMeal.ingredients.length,
-  0,
-);
-
-const summaryItems = [
-  {
-    label: "Week structure",
-    value: `${mealPlan.length} days`,
-  },
-  {
-    label: "Meals planned",
-    value: `${allMeals.length} slots`,
-  },
-  {
-    label: "Ingredient lines",
-    value: `${ingredientCount} planned`,
-  },
-];
-
 const selectedIngredientByLine = new Map();
+let selectedMealPlanId = mealPlans[0].id;
 const NUTRITION_STORAGE_KEY = "foodplan.nutritionData";
 const nutrientRows = [
   { key: "calories", label: "Calories", unit: "kcal", dailyValue: 2000, referenceType: "guide" },
@@ -79,6 +56,62 @@ const createElement = (tagName, options = {}) => {
   }
 
   return element;
+};
+
+const getSelectedMealPlan = () =>
+  mealPlans.find((plannedMeal) => plannedMeal.id === selectedMealPlanId) ?? mealPlans[0];
+
+const getCurrentMealPlan = () => getSelectedMealPlan().plan;
+
+const getSummaryItems = () => {
+  const currentMealPlan = getCurrentMealPlan();
+  const allMeals = currentMealPlan.flatMap((dayPlan) =>
+    mealTypes.map((mealType) => dayPlan.meals[mealType.key]),
+  );
+  const ingredientCount = allMeals.reduce(
+    (count, plannedMeal) => count + plannedMeal.ingredients.length,
+    0,
+  );
+
+  return [
+    {
+      label: "Week structure",
+      value: `${currentMealPlan.length} days`,
+    },
+    {
+      label: "Meals planned",
+      value: `${allMeals.length} slots`,
+    },
+    {
+      label: "Ingredient lines",
+      value: `${ingredientCount} planned`,
+    },
+  ];
+};
+
+const createPlanSelector = () => {
+  const select = createElement("select", {
+    attrs: {
+      id: "meal-plan-select",
+      "aria-label": "Meal plan",
+    },
+  });
+
+  select.append(...mealPlans.map((plannedMeal) =>
+    createElement("option", {
+      text: plannedMeal.name,
+      attrs: { value: plannedMeal.id },
+    }),
+  ));
+  select.value = selectedMealPlanId;
+  select.addEventListener("change", () => {
+    selectedMealPlanId = select.value;
+    mealPlan = getCurrentMealPlan();
+    selectedIngredientByLine.clear();
+    renderApp();
+  });
+
+  return select;
 };
 
 const formatAmount = ({ amount, unit }) => {
@@ -224,7 +257,7 @@ const calculateDayNutrition = (mealTotals) =>
 
 const formatMacro = (value) => Math.round(value);
 
-const weeklyReference = (nutrient) => nutrient.dailyValue * mealPlan.length;
+const weeklyReference = (nutrient) => nutrient.dailyValue * getCurrentMealPlan().length;
 
 const formatNutrientAmount = (value, nutrient) => {
   const roundedValue = Math.abs(value) >= 100 ? Math.round(value) : Number(value.toFixed(1));
@@ -316,7 +349,7 @@ const formatAggregateUnit = (amount, unit) => {
 const getWeeklyIngredientTotals = () => {
   const totals = new Map();
 
-  mealPlan.forEach((dayPlan, dayIndex) => {
+  getCurrentMealPlan().forEach((dayPlan, dayIndex) => {
     mealTypes.forEach((mealType) => {
       const plannedMeal = dayPlan.meals[mealType.key];
 
@@ -348,6 +381,15 @@ const renderWeeklyIngredientTotals = () => {
   const thead = createElement("thead");
   const headerRow = createElement("tr");
   const tbody = createElement("tbody");
+  const totals = getWeeklyIngredientTotals();
+
+  if (totals.length === 0) {
+    mount.replaceChildren(createElement("p", {
+      className: "empty-state",
+      text: "No ingredients in this meal plan yet.",
+    }));
+    return;
+  }
 
   ["Ingredient", "Amount", "Category", "Area"].forEach((label) => {
     headerRow.append(createElement("th", {
@@ -356,7 +398,7 @@ const renderWeeklyIngredientTotals = () => {
     }));
   });
 
-  getWeeklyIngredientTotals().forEach((total) => {
+  totals.forEach((total) => {
     const ingredient = getIngredient(total.ingredientId);
     const row = createElement("tr");
     const amount = [
@@ -388,7 +430,7 @@ const calculateWeeklyNutrientTotals = () => {
     dinner: emptyNutrition(),
   };
 
-  mealPlan.forEach((dayPlan, dayIndex) => {
+  getCurrentMealPlan().forEach((dayPlan, dayIndex) => {
     mealTypes.forEach((mealType) => {
       const plannedMeal = dayPlan.meals[mealType.key];
       const selectedChoices = getSelectedChoices(plannedMeal, dayIndex, mealType.key);
@@ -410,6 +452,14 @@ const renderWeeklyNutrientTotals = () => {
   const headerRow = createElement("tr");
   const tbody = createElement("tbody");
   const mealTotals = calculateWeeklyNutrientTotals();
+
+  if (getCurrentMealPlan().length === 0) {
+    mount.replaceChildren(createElement("p", {
+      className: "empty-state",
+      text: "No nutrient totals to show yet.",
+    }));
+    return;
+  }
 
   ["Nutrient", "Breakfast", "Lunch", "Dinner", "Total"].forEach((label) => {
     headerRow.append(createElement("th", {
@@ -531,8 +581,9 @@ const renderMeal = (plannedMeal, dayIndex, mealKey, onNutritionChange = () => {}
 const renderSummary = () => {
   const summary = document.querySelector("#summary");
   const fragment = document.createDocumentFragment();
+  const selectorWrapper = createElement("div", { className: "summary__control" });
 
-  summaryItems.forEach((item) => {
+  getSummaryItems().forEach((item) => {
     const wrapper = createElement("div");
     const label = createElement("span", {
       className: "summary__label",
@@ -544,6 +595,12 @@ const renderSummary = () => {
     fragment.append(wrapper);
   });
 
+  selectorWrapper.append(
+    createElement("span", { className: "summary__label", text: "Meal plan" }),
+    createPlanSelector(),
+  );
+  fragment.append(selectorWrapper);
+
   summary.replaceChildren(fragment);
 };
 
@@ -552,6 +609,7 @@ const renderTable = () => {
   const tableBody = document.querySelector("#meal-table-body");
   const headFragment = document.createDocumentFragment();
   const bodyFragment = document.createDocumentFragment();
+  const currentMealPlan = getCurrentMealPlan();
 
   [
     { label: "Day", attrs: { scope: "col" } },
@@ -569,7 +627,19 @@ const renderTable = () => {
     );
   });
 
-  mealPlan.forEach((dayPlan, dayIndex) => {
+  if (currentMealPlan.length === 0) {
+    const row = createElement("tr");
+    const cell = createElement("td", {
+      className: "empty-state",
+      text: "This meal plan is empty.",
+      attrs: { colspan: String(mealTypes.length + 2) },
+    });
+
+    row.append(cell);
+    bodyFragment.append(row);
+  }
+
+  currentMealPlan.forEach((dayPlan, dayIndex) => {
     const row = createElement("tr");
     const dayHeader = createElement("th", {
       text: dayPlan.day,
@@ -610,8 +680,16 @@ const renderTable = () => {
 const renderCards = () => {
   const cards = document.querySelector("#meal-cards");
   const fragment = document.createDocumentFragment();
+  const currentMealPlan = getCurrentMealPlan();
 
-  mealPlan.forEach((dayPlan, dayIndex) => {
+  if (currentMealPlan.length === 0) {
+    fragment.append(createElement("p", {
+      className: "empty-state",
+      text: "This meal plan is empty.",
+    }));
+  }
+
+  currentMealPlan.forEach((dayPlan, dayIndex) => {
     const card = createElement("article", { className: "day-card" });
     const heading = createElement("h2", { text: dayPlan.day });
     const details = createElement("dl");
@@ -645,8 +723,12 @@ const renderCards = () => {
   cards.replaceChildren(fragment);
 };
 
-renderSummary();
-renderTable();
-renderCards();
-renderWeeklyIngredientTotals();
-renderWeeklyNutrientTotals();
+const renderApp = () => {
+  renderSummary();
+  renderTable();
+  renderCards();
+  renderWeeklyIngredientTotals();
+  renderWeeklyNutrientTotals();
+};
+
+renderApp();

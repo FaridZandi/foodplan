@@ -14,7 +14,7 @@ const food = (amount = "", unit = "", ingredients = []) => {
   };
 };
 
-const mealPlan = [
+const defaultMealPlan = [
   {
     day: "Sunday",
     meals: {
@@ -159,3 +159,41 @@ const mealPlan = [
     },
   },
 ];
+
+const emptyMealPlan = [{
+    day: "Sunday",
+    meals: {
+      breakfast: meal("Greek yogurt bowl", [
+        food(1, "cup", [Ingredient.GREEK_YOGURT, Ingredient.PLAIN_SKYR]),
+        food(0.5, "cup", [Ingredient.BLUEBERRIES]),
+        food(50, "g", [Ingredient.GRANOLA]),
+        food(2, "tbsp", [Ingredient.ALMONDS, Ingredient.WALNUTS, Ingredient.PUMPKIN_SEEDS]),
+      ]),
+      lunch: meal("Rotisserie chicken corn salad", [
+        food(5, "oz", [Ingredient.ROTISSERIE_CHICKEN, Ingredient.GRILLED_CHICKEN_BREAST, Ingredient.DELI_TURKEY]),
+        food(0.5, "cup", [Ingredient.FROZEN_CORN, Ingredient.BLACK_BEANS, Ingredient.FROZEN_PEAS]),
+        food(2, "tbsp", [Ingredient.CHIPOTLE_SAUCE, Ingredient.SALSA, Ingredient.GREEK_YOGURT_RANCH]),
+        food(2, "cups", [Ingredient.ROMAINE_SALAD, Ingredient.SPINACH, Ingredient.SPRING_MIX]),
+      ]),
+      dinner: meal("Air-fryer chicken rice bowl", [
+        food(6, "oz", [Ingredient.MARINATED_CHICKEN_BREAST, Ingredient.CHICKEN_THIGHS, Ingredient.EXTRA_FIRM_TOFU]),
+        food(1, "cup", [Ingredient.JASMINE_RICE, Ingredient.COOKED_BASMATI_RICE, Ingredient.COOKED_QUINOA]),
+        food(2, "cups", [Ingredient.BROCCOLI_FLORETS, Ingredient.GREEN_BEANS, Ingredient.ZUCCHINI]),
+      ]),
+    },
+  }];
+
+const mealPlans = Object.freeze([
+    {
+    id: "empty-plan",
+    name: "Empty plan",
+    plan: emptyMealPlan,
+  },
+  {
+    id: "weekly-default",
+    name: "Weekly default",
+    plan: defaultMealPlan,
+  },
+]);
+
+let mealPlan = mealPlans[0].plan;

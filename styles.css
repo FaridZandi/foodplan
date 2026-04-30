@@ -112,7 +112,7 @@ h1 {
 
 .summary {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1px;
   margin: 22px 0;
   overflow: hidden;
@@ -142,6 +142,17 @@ h1 {
   display: block;
   font-size: clamp(1.15rem, 2vw, 1.5rem);
   line-height: 1.2;
+}
+
+.summary__control select {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid rgba(96, 116, 102, 0.34);
+  border-radius: 6px;
+  background: rgba(255, 253, 248, 0.95);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
 }
 
 .desktop-plan {
@@ -421,6 +432,13 @@ tbody tr:hover {
   color: var(--tomato);
   font-weight: 800;
   white-space: nowrap;
+}
+
+.empty-state {
+  margin: 0;
+  padding: 22px;
+  color: var(--muted);
+  font-weight: 700;
 }
 
 #weekly-nutrient-totals {
