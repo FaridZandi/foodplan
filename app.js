@@ -30,6 +30,28 @@ const summaryItems = [
 
 const selectedIngredientByLine = new Map();
 const NUTRITION_STORAGE_KEY = "foodplan.nutritionData";
+const nutrientRows = [
+  { key: "calories", label: "Calories", unit: "kcal", dailyValue: 2000, referenceType: "guide" },
+  { key: "protein", label: "Protein", unit: "g", dailyValue: 50, referenceType: "daily value" },
+  { key: "carbs", label: "Total carbohydrate", unit: "g", dailyValue: 275, referenceType: "daily value" },
+  { key: "fat", label: "Total fat", unit: "g", dailyValue: 78, referenceType: "daily value" },
+  { key: "fiber", label: "Dietary fiber", unit: "g", dailyValue: 28, referenceType: "target" },
+  { key: "sugar", label: "Total sugars", unit: "g" },
+  { key: "addedSugar", label: "Added sugars", unit: "g", dailyValue: 50, referenceType: "limit" },
+  { key: "saturatedFat", label: "Saturated fat", unit: "g", dailyValue: 20, referenceType: "limit" },
+  { key: "transFat", label: "Trans fat", unit: "g", referenceText: "keep low" },
+  { key: "cholesterol", label: "Cholesterol", unit: "mg", dailyValue: 300, referenceType: "limit" },
+  { key: "sodium", label: "Sodium", unit: "mg", dailyValue: 2300, referenceType: "limit" },
+  { key: "potassium", label: "Potassium", unit: "mg", dailyValue: 4700, referenceType: "target" },
+  { key: "calcium", label: "Calcium", unit: "mg", dailyValue: 1300, referenceType: "target" },
+  { key: "iron", label: "Iron", unit: "mg", dailyValue: 18, referenceType: "target" },
+  { key: "vitaminD", label: "Vitamin D", unit: "mcg", dailyValue: 20, referenceType: "target" },
+  { key: "magnesium", label: "Magnesium", unit: "mg", dailyValue: 420, referenceType: "target" },
+  { key: "vitaminC", label: "Vitamin C", unit: "mg", dailyValue: 90, referenceType: "target" },
+  { key: "vitaminA", label: "Vitamin A", unit: "mcg RAE", dailyValue: 900, referenceType: "target" },
+  { key: "folate", label: "Folate", unit: "mcg DFE", dailyValue: 400, referenceType: "target" },
+  { key: "vitaminB12", label: "Vitamin B12", unit: "mcg", dailyValue: 2.4, referenceType: "target" },
+];
 
 const readStagedNutritionData = () => {
   try {
@@ -79,10 +101,21 @@ const getIngredient = (ingredientId) => {
 
 const getChoiceName = (ingredientId) => getIngredient(ingredientId).name;
 
+const getRecordNutrients = (record) => record?.nutrients ?? record?.nutrition;
+
+const mergeNutrients = (...nutrientSources) =>
+  nutrientSources
+    .filter(Boolean)
+    .reduce((merged, nutrients) => ({ ...merged, ...nutrients }), undefined);
+
 const getChoiceNutrition = (ingredientId) => {
-  const stagedNutrition = readStagedNutritionData()[ingredientId]?.nutrition;
-  const cachedNutrition = typeof nutritionData === "undefined" ? undefined : nutritionData[ingredientId]?.nutrition;
-  const nutritionDetails = stagedNutrition ?? cachedNutrition ?? ingredientNutrition[ingredientId];
+  const stagedNutrition = getRecordNutrients(readStagedNutritionData()[ingredientId]);
+  const cachedNutrition = typeof nutritionData === "undefined" ? undefined : getRecordNutrients(nutritionData[ingredientId]);
+  const nutritionDetails = mergeNutrients(
+    ingredientNutrition[ingredientId],
+    cachedNutrition,
+    stagedNutrition,
+  );
 
   if (!nutritionDetails) {
     throw new Error(`Missing nutrition estimate for: ${getChoiceName(ingredientId)}`);
@@ -101,21 +134,28 @@ const scaleNutrition = (plannedIngredient, choice) => {
   const scale = sameUnit(plannedIngredient.unit, nutritionDetails.unit)
     ? amount / nutritionDetails.amount
     : 1;
+  const scaledNutrition = {};
 
-  return {
-    calories: nutritionDetails.calories * scale,
-    protein: nutritionDetails.protein * scale,
-    carbs: nutritionDetails.carbs * scale,
-    fat: nutritionDetails.fat * scale,
-  };
+  Object.entries(nutritionDetails).forEach(([key, value]) => {
+    if (key !== "amount" && key !== "unit" && typeof value === "number") {
+      scaledNutrition[key] = value * scale;
+    }
+  });
+
+  return scaledNutrition;
 };
 
-const addNutrition = (total, nutritionDetails) => ({
-  calories: total.calories + nutritionDetails.calories,
-  protein: total.protein + nutritionDetails.protein,
-  carbs: total.carbs + nutritionDetails.carbs,
-  fat: total.fat + nutritionDetails.fat,
-});
+const addNutrition = (total, nutritionDetails) => {
+  const nextTotal = { ...total };
+
+  Object.entries(nutritionDetails).forEach(([key, value]) => {
+    if (typeof value === "number") {
+      nextTotal[key] = (nextTotal[key] ?? 0) + value;
+    }
+  });
+
+  return nextTotal;
+};
 
 const emptyNutrition = () => ({ calories: 0, protein: 0, carbs: 0, fat: 0 });
 
@@ -153,6 +193,37 @@ const calculateDayNutrition = (mealTotals) =>
   Object.values(mealTotals).reduce(addNutrition, emptyNutrition());
 
 const formatMacro = (value) => Math.round(value);
+
+const weeklyReference = (nutrient) => nutrient.dailyValue * mealPlan.length;
+
+const formatNutrientAmount = (value, nutrient) => {
+  const roundedValue = Math.abs(value) >= 100 ? Math.round(value) : Number(value.toFixed(1));
+
+  return `${roundedValue.toLocaleString()} ${nutrient.unit}`;
+};
+
+const formatNutrientReference = (nutrient) => {
+  if (nutrient.referenceText) {
+    return nutrient.referenceText;
+  }
+
+  if (!nutrient.dailyValue) {
+    return "No FDA DV";
+  }
+
+  return `${nutrient.referenceType}: ${formatNutrientAmount(weeklyReference(nutrient), nutrient)}`;
+};
+
+const renderTotalWithReference = (value, nutrient) => {
+  const wrapper = createElement("div", { className: "nutrient-total" });
+
+  wrapper.append(
+    createElement("strong", { text: formatNutrientAmount(value, nutrient) }),
+    createElement("span", { text: formatNutrientReference(nutrient) }),
+  );
+
+  return wrapper;
+};
 
 const renderNutritionLine = (nutritionDetails) => {
   const line = createElement("dl", { className: "nutrition-line" });
@@ -280,6 +351,72 @@ const renderWeeklyIngredientTotals = () => {
   mount.replaceChildren(table);
 };
 
+const calculateWeeklyNutrientTotals = () => {
+  const totals = {
+    breakfast: emptyNutrition(),
+    lunch: emptyNutrition(),
+    dinner: emptyNutrition(),
+  };
+
+  mealPlan.forEach((dayPlan, dayIndex) => {
+    mealTypes.forEach((mealType) => {
+      const plannedMeal = dayPlan.meals[mealType.key];
+      const selectedChoices = getSelectedChoices(plannedMeal, dayIndex, mealType.key);
+
+      totals[mealType.key] = addNutrition(
+        totals[mealType.key],
+        calculateMealNutrition(plannedMeal, selectedChoices),
+      );
+    });
+  });
+
+  return totals;
+};
+
+const renderWeeklyNutrientTotals = () => {
+  const mount = document.querySelector("#weekly-nutrient-totals");
+  const table = createElement("table", { className: "weekly-ingredients__table weekly-nutrients__table" });
+  const thead = createElement("thead");
+  const headerRow = createElement("tr");
+  const tbody = createElement("tbody");
+  const mealTotals = calculateWeeklyNutrientTotals();
+
+  ["Nutrient", "Breakfast", "Lunch", "Dinner", "Total"].forEach((label) => {
+    headerRow.append(createElement("th", {
+      text: label,
+      attrs: { scope: "col" },
+    }));
+  });
+
+  nutrientRows.forEach((nutrient) => {
+    const row = createElement("tr");
+    const total = mealTypes.reduce(
+      (sum, mealType) => sum + (mealTotals[mealType.key][nutrient.key] ?? 0),
+      0,
+    );
+
+    row.append(createElement("th", {
+      text: nutrient.label,
+      attrs: { scope: "row" },
+    }));
+
+    mealTypes.forEach((mealType) => {
+      row.append(createElement("td", {
+        text: formatNutrientAmount(mealTotals[mealType.key][nutrient.key] ?? 0, nutrient),
+      }));
+    });
+
+    const totalCell = createElement("td");
+    totalCell.append(renderTotalWithReference(total, nutrient));
+    row.append(totalCell);
+    tbody.append(row);
+  });
+
+  thead.append(headerRow);
+  table.append(thead, tbody);
+  mount.replaceChildren(table);
+};
+
 const renderIngredientChoice = (plannedIngredient, ingredientIndex, selectedChoices, onChange) => {
   const choices = plannedIngredient.ingredients;
   const defaultChoiceName = getChoiceName(choices[0]);
@@ -346,6 +483,7 @@ const renderMeal = (plannedMeal, dayIndex, mealKey, onNutritionChange = () => {}
     updateNutritionLine(nutritionLine, updatedNutrition);
     onNutritionChange(updatedNutrition);
     renderWeeklyIngredientTotals();
+    renderWeeklyNutrientTotals();
   };
 
   wrapper.append(title, renderIngredients(plannedMeal.ingredients, selectedChoices, (ingredientIndex, ingredientId) => {
@@ -481,3 +619,4 @@ renderSummary();
 renderTable();
 renderCards();
 renderWeeklyIngredientTotals();
+renderWeeklyNutrientTotals();

@@ -30,16 +30,36 @@ const fdcFailureMessage = (error) => {
 const getStoredNutritionRecord = (ingredientId) => {
   const staged = readStagedNutritionData();
 
-  return staged[ingredientId] ?? nutritionData?.[ingredientId];
+  return mergeNutritionRecord(nutritionData?.[ingredientId], staged[ingredientId]);
+};
+
+const getRecordNutrients = (record) => record?.nutrients ?? record?.nutrition;
+
+const mergeNutritionRecord = (baseRecord, overrideRecord) => {
+  if (!baseRecord && !overrideRecord) {
+    return undefined;
+  }
+
+  return {
+    ...baseRecord,
+    ...overrideRecord,
+    nutrients: {
+      ...(getRecordNutrients(baseRecord) ?? {}),
+      ...(getRecordNutrients(overrideRecord) ?? {}),
+    },
+  };
 };
 
 const nutrientAmount = (food, names, unit = "") => {
   const wanted = Array.isArray(names) ? names : [names];
+  const normalizedUnit = unit.toLowerCase().replace("µ", "u");
   const nutrient = food.foodNutrients?.find((foodNutrient) => {
     const name = foodNutrient.nutrient?.name ?? foodNutrient.nutrientName;
-    const nutrientUnit = foodNutrient.nutrient?.unitName ?? foodNutrient.unitName;
+    const nutrientUnit = String(foodNutrient.nutrient?.unitName ?? foodNutrient.unitName ?? "")
+      .toLowerCase()
+      .replace("µ", "u");
 
-    return wanted.includes(name) && (!unit || nutrientUnit?.toLowerCase() === unit.toLowerCase());
+    return wanted.includes(name) && (!unit || nutrientUnit === normalizedUnit);
   });
 
   return Number(nutrient?.amount ?? nutrient?.value ?? 0);
@@ -62,31 +82,41 @@ const normalizeFdcFood = (food) => {
     source: "USDA FoodData Central",
     verified: true,
     verifiedAt: new Date().toISOString().slice(0, 10),
-    nutrition: {
+    nutrients: {
       amount: Number(gramWeight.toFixed(2)),
       unit: "g",
       calories: Number((nutrientAmount(food, ["Energy", "Energy (Atwater General Factors)", "Energy (Atwater Specific Factors)"], "kcal") * factor).toFixed(2)),
       protein: Number((nutrientAmount(food, "Protein", "g") * factor).toFixed(2)),
       carbs: Number((nutrientAmount(food, "Carbohydrate, by difference", "g") * factor).toFixed(2)),
       fat: Number((nutrientAmount(food, "Total lipid (fat)", "g") * factor).toFixed(2)),
-    },
-    extraNutrients: {
       fiber: Number((nutrientAmount(food, "Fiber, total dietary", "g") * factor).toFixed(2)),
-      sugar: Number((nutrientAmount(food, "Total Sugars", "g") * factor).toFixed(2)),
+      sugar: Number((nutrientAmount(food, ["Total Sugars", "Sugars, total including NLEA"], "g") * factor).toFixed(2)),
+      addedSugar: Number((nutrientAmount(food, ["Sugars, added", "Added Sugars"], "g") * factor).toFixed(2)),
+      saturatedFat: Number((nutrientAmount(food, "Fatty acids, total saturated", "g") * factor).toFixed(2)),
+      transFat: Number((nutrientAmount(food, "Fatty acids, total trans", "g") * factor).toFixed(2)),
+      cholesterol: Number((nutrientAmount(food, "Cholesterol", "mg") * factor).toFixed(2)),
       sodium: Number((nutrientAmount(food, "Sodium, Na", "mg") * factor).toFixed(2)),
+      potassium: Number((nutrientAmount(food, "Potassium, K", "mg") * factor).toFixed(2)),
       calcium: Number((nutrientAmount(food, "Calcium, Ca", "mg") * factor).toFixed(2)),
+      iron: Number((nutrientAmount(food, "Iron, Fe", "mg") * factor).toFixed(2)),
+      vitaminD: Number((nutrientAmount(food, "Vitamin D (D2 + D3)", "ug") * factor).toFixed(2)),
+      magnesium: Number((nutrientAmount(food, "Magnesium, Mg", "mg") * factor).toFixed(2)),
+      vitaminC: Number((nutrientAmount(food, "Vitamin C, total ascorbic acid", "mg") * factor).toFixed(2)),
+      vitaminA: Number((nutrientAmount(food, "Vitamin A, RAE", "ug") * factor).toFixed(2)),
+      folate: Number((nutrientAmount(food, "Folate, DFE", "ug") * factor).toFixed(2)),
+      vitaminB12: Number((nutrientAmount(food, "Vitamin B-12", "ug") * factor).toFixed(2)),
     },
   };
 };
 
 const nutritionSummary = (record) => {
-  if (!record?.nutrition) {
+  const nutrients = getRecordNutrients(record);
+
+  if (!nutrients) {
     return "No USDA data";
   }
 
-  const { nutrition: value } = record;
-
-  return `${Math.round(value.calories)} kcal, ${Math.round(value.protein)}g protein, ${Math.round(value.carbs)}g carbs, ${Math.round(value.fat)}g fat per ${value.amount}${value.unit}`;
+  return `${Math.round(nutrients.calories)} kcal, ${Math.round(nutrients.protein)}g protein, ${Math.round(nutrients.carbs)}g carbs, ${Math.round(nutrients.fat)}g fat per ${nutrients.amount}${nutrients.unit}`;
 };
 
 const createAdminButton = (text, onClick) => {
@@ -228,12 +258,11 @@ const renderIngredientAdmin = () => {
 
 const generateNutritionDataSource = () => {
   const staged = readStagedNutritionData();
-  const merged = { ...nutritionData, ...staged };
   const lines = Object.entries(Ingredient)
-    .filter(([, id]) => merged[id])
-    .map(([key, id]) => {
-      const record = merged[id];
-      const extra = record.extraNutrients ?? {};
+    .map(([key, id]) => [key, id, mergeNutritionRecord(nutritionData[id], staged[id])])
+    .filter(([, , record]) => record)
+    .map(([key, , record]) => {
+      const nutrients = getRecordNutrients(record);
 
       return `  [Ingredient.${key}]: {
     fdcId: ${record.fdcId},
@@ -242,12 +271,29 @@ const generateNutritionDataSource = () => {
     source: "USDA FoodData Central",
     verified: ${Boolean(record.verified)},
     verifiedAt: ${JSON.stringify(record.verifiedAt)},
-    nutrition: nutrition(${record.nutrition.amount}, ${JSON.stringify(record.nutrition.unit)}, ${record.nutrition.calories}, ${record.nutrition.protein}, ${record.nutrition.carbs}, ${record.nutrition.fat}),
-    extraNutrients: {
-      fiber: ${extra.fiber ?? 0},
-      sugar: ${extra.sugar ?? 0},
-      sodium: ${extra.sodium ?? 0},
-      calcium: ${extra.calcium ?? 0},
+    nutrients: {
+      amount: ${nutrients.amount},
+      unit: ${JSON.stringify(nutrients.unit)},
+      calories: ${nutrients.calories ?? 0},
+      protein: ${nutrients.protein ?? 0},
+      carbs: ${nutrients.carbs ?? 0},
+      fat: ${nutrients.fat ?? 0},
+      fiber: ${nutrients.fiber ?? 0},
+      sugar: ${nutrients.sugar ?? 0},
+      addedSugar: ${nutrients.addedSugar ?? 0},
+      saturatedFat: ${nutrients.saturatedFat ?? 0},
+      transFat: ${nutrients.transFat ?? 0},
+      cholesterol: ${nutrients.cholesterol ?? 0},
+      sodium: ${nutrients.sodium ?? 0},
+      potassium: ${nutrients.potassium ?? 0},
+      calcium: ${nutrients.calcium ?? 0},
+      iron: ${nutrients.iron ?? 0},
+      vitaminD: ${nutrients.vitaminD ?? 0},
+      magnesium: ${nutrients.magnesium ?? 0},
+      vitaminC: ${nutrients.vitaminC ?? 0},
+      vitaminA: ${nutrients.vitaminA ?? 0},
+      folate: ${nutrients.folate ?? 0},
+      vitaminB12: ${nutrients.vitaminB12 ?? 0},
     },
   }`;
     });

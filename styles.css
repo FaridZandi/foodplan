@@ -423,6 +423,38 @@ tbody tr:hover {
   white-space: nowrap;
 }
 
+#weekly-nutrient-totals {
+  overflow-x: auto;
+}
+
+.weekly-nutrients__table {
+  min-width: 760px;
+}
+
+.weekly-nutrients__table td:not(:last-child) {
+  color: var(--tomato);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.nutrient-total {
+  display: grid;
+  gap: 3px;
+}
+
+.nutrient-total strong {
+  color: var(--tomato);
+  font-size: 0.95rem;
+  line-height: 1.15;
+}
+
+.nutrient-total span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
 .admin-shell {
   width: min(1320px, calc(100% - 32px));
 }
