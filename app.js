@@ -208,6 +208,16 @@ const scaleNutrition = (plannedIngredient, choice) => {
   return scaledNutrition;
 };
 
+const getScaledIngredientNutrition = (plannedIngredient, ingredientId) => {
+  const nutritionDetails = getChoiceNutrition(ingredientId);
+  const plannedGrams = plannedAmountInGrams(plannedIngredient, ingredientId, nutritionDetails);
+
+  return {
+    nutrition: scaleNutrition(plannedIngredient, ingredientId),
+    plannedGrams,
+  };
+};
+
 const addNutrition = (total, nutritionDetails) => {
   const nextTotal = { ...total };
 
@@ -286,6 +296,118 @@ const renderTotalWithReference = (value, nutrient) => {
   );
 
   return wrapper;
+};
+
+const formatGrams = (grams) => {
+  if (!grams) {
+    return "";
+  }
+
+  return `${Number(grams.toFixed(1)).toLocaleString()} g`;
+};
+
+const closeIngredientInfo = (overlay) => {
+  overlay.remove();
+};
+
+const openIngredientInfo = (plannedIngredient, ingredientId) => {
+  const ingredient = getIngredient(ingredientId);
+  const { nutrition, plannedGrams } = getScaledIngredientNutrition(plannedIngredient, ingredientId);
+  const overlay = createElement("div", { className: "ingredient-info-overlay" });
+  const panel = createElement("div", {
+    className: "ingredient-info",
+    attrs: {
+      role: "dialog",
+      "aria-modal": "true",
+      "aria-labelledby": "ingredient-info-title",
+    },
+  });
+  const header = createElement("div", { className: "ingredient-info__header" });
+  const titleBlock = createElement("div");
+  const closeButton = createElement("button", {
+    className: "ingredient-info__close",
+    text: "x",
+    attrs: { type: "button", "aria-label": "Close ingredient nutrition" },
+  });
+  const table = createElement("table", { className: "ingredient-info__table" });
+  const thead = createElement("thead");
+  const headerRow = createElement("tr");
+  const tbody = createElement("tbody");
+  const portionText = [
+    formatAmount(plannedIngredient),
+    formatGrams(plannedGrams),
+  ].filter(Boolean).join(" / ");
+
+  titleBlock.append(
+    createElement("span", { className: "summary__label", text: "Ingredient nutrition" }),
+    createElement("h3", {
+      text: ingredient.name,
+      attrs: { id: "ingredient-info-title" },
+    }),
+    createElement("p", {
+      text: portionText ? `Shown for ${portionText}` : "Shown for the selected portion",
+    }),
+  );
+
+  closeButton.addEventListener("click", () => closeIngredientInfo(overlay));
+  overlay.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      closeIngredientInfo(overlay);
+    }
+  });
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) {
+      closeIngredientInfo(overlay);
+    }
+  });
+
+  header.append(titleBlock, closeButton);
+  ["Nutrient", "Amount"].forEach((label) => {
+    headerRow.append(createElement("th", {
+      text: label,
+      attrs: { scope: "col" },
+    }));
+  });
+
+  nutrientRows.forEach((nutrient) => {
+    const row = createElement("tr");
+
+    row.append(
+      createElement("th", {
+        text: nutrient.label,
+        attrs: { scope: "row" },
+      }),
+      createElement("td", {
+        text: formatNutrientAmount(nutrition[nutrient.key] ?? 0, nutrient),
+      }),
+    );
+    tbody.append(row);
+  });
+
+  thead.append(headerRow);
+  table.append(thead, tbody);
+  panel.append(header, table);
+  overlay.append(panel);
+  document.body.append(overlay);
+  closeButton.focus();
+};
+
+const renderIngredientInfoButton = (plannedIngredient, ingredientIndex, selectedChoices) => {
+  const button = createElement("button", {
+    className: "ingredient-info-button",
+    text: "i",
+    attrs: {
+      type: "button",
+      "aria-label": "Show ingredient nutrition",
+      title: "Show nutrition",
+    },
+  });
+
+  button.addEventListener("click", () => {
+    openIngredientInfo(plannedIngredient, selectedChoices[ingredientIndex]);
+  });
+
+  return button;
 };
 
 const renderNutritionLine = (nutritionDetails) => {
@@ -538,9 +660,14 @@ const renderIngredients = (ingredients, selectedChoices, onChange) => {
       item.append(
         createElement("span", { className: "ingredient-amount", text: amount }),
         renderIngredientChoice(plannedIngredient, ingredientIndex, selectedChoices, onChange),
+        renderIngredientInfoButton(plannedIngredient, ingredientIndex, selectedChoices),
       );
     } else {
-      item.append(renderIngredientChoice(plannedIngredient, ingredientIndex, selectedChoices, onChange));
+      item.append(
+        createElement("span", { className: "ingredient-amount", text: "" }),
+        renderIngredientChoice(plannedIngredient, ingredientIndex, selectedChoices, onChange),
+        renderIngredientInfoButton(plannedIngredient, ingredientIndex, selectedChoices),
+      );
     }
 
     list.append(item);
