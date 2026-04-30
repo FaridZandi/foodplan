@@ -29,6 +29,15 @@ const summaryItems = [
 ];
 
 const selectedIngredientByLine = new Map();
+const NUTRITION_STORAGE_KEY = "foodplan.nutritionData";
+
+const readStagedNutritionData = () => {
+  try {
+    return JSON.parse(localStorage.getItem(NUTRITION_STORAGE_KEY)) ?? {};
+  } catch {
+    return {};
+  }
+};
 
 const createElement = (tagName, options = {}) => {
   const element = document.createElement(tagName);
@@ -71,7 +80,9 @@ const getIngredient = (ingredientId) => {
 const getChoiceName = (ingredientId) => getIngredient(ingredientId).name;
 
 const getChoiceNutrition = (ingredientId) => {
-  const nutritionDetails = ingredientNutrition[ingredientId];
+  const stagedNutrition = readStagedNutritionData()[ingredientId]?.nutrition;
+  const cachedNutrition = typeof nutritionData === "undefined" ? undefined : nutritionData[ingredientId]?.nutrition;
+  const nutritionDetails = stagedNutrition ?? cachedNutrition ?? ingredientNutrition[ingredientId];
 
   if (!nutritionDetails) {
     throw new Error(`Missing nutrition estimate for: ${getChoiceName(ingredientId)}`);

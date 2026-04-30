@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Ingredients | Weekly Meal Plan</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="page-shell admin-shell">
+      <header class="admin-header">
+        <div>
+          <p class="eyebrow">Ingredient data</p>
+          <h1>Ingredients</h1>
+          <p class="hero__copy">Search USDA FoodData Central, pick accurate matches, and stage verified nutrition data for the meal plan.</p>
+        </div>
+        <a class="text-link" href="index.html">Meal plan</a>
+      </header>
+
+      <section class="admin-panel" aria-labelledby="admin-summary-title">
+        <h2 id="admin-summary-title">Catalog Status</h2>
+        <div class="admin-summary" id="ingredient-admin-summary"></div>
+      </section>
+
+      <section class="admin-panel" aria-labelledby="fdc-key-title">
+        <div class="admin-panel__header">
+          <div>
+            <h2 id="fdc-key-title">FoodData Central API Key</h2>
+            <p class="admin-note" id="fdc-key-status"></p>
+          </div>
+          <div class="fdc-key-form">
+            <input id="fdc-api-key" type="password" autocomplete="off" placeholder="USDA API key" aria-label="USDA FoodData Central API key">
+            <button type="button" id="save-fdc-api-key">Save key</button>
+            <button type="button" id="clear-fdc-api-key">Use demo key</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="admin-panel" aria-labelledby="ingredient-table-title">
+        <div class="admin-panel__header">
+          <h2 id="ingredient-table-title">Ingredient Matches</h2>
+          <div class="admin-actions">
+            <button type="button" id="refresh-verified-data">Refresh verified</button>
+            <button type="button" id="export-nutrition-data">Generate nutrition-data.js</button>
+            <button type="button" id="clear-staged-data">Clear staged data</button>
+          </div>
+        </div>
+        <div class="admin-table-wrap">
+          <table class="ingredient-admin-table">
+            <thead>
+              <tr>
+                <th scope="col">Ingredient</th>
+                <th scope="col">Current match</th>
+                <th scope="col">Nutrition</th>
+                <th scope="col">Search</th>
+              </tr>
+            </thead>
+            <tbody id="ingredient-admin-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="admin-panel" aria-labelledby="export-title">
+        <h2 id="export-title">Generated Cache</h2>
+        <textarea id="nutrition-data-output" spellcheck="false" readonly></textarea>
+      </section>
+    </main>
+
+    <script src="ingredients.js" defer></script>
+    <script src="nutrition-data.js" defer></script>
+    <script src="fdc.js" defer></script>
+    <script src="ingredient-admin.js" defer></script>
+  </body>
+</html>
