@@ -128,12 +128,42 @@ const normalizeUnit = (unit) => String(unit).toLowerCase().replace(/s$/, "");
 
 const sameUnit = (firstUnit, secondUnit) => normalizeUnit(firstUnit) === normalizeUnit(secondUnit);
 
+const gramsPerUnit = (ingredientId, unit) => {
+  const normalizedUnit = normalizeUnit(unit) || "count";
+  const weights = typeof ingredientGramWeights === "undefined" ? undefined : ingredientGramWeights[ingredientId];
+
+  return weights?.[normalizedUnit];
+};
+
+const plannedAmountInGrams = (plannedIngredient, ingredientId, nutritionDetails) => {
+  const amount = plannedIngredient.amount === "" ? 1 : plannedIngredient.amount;
+  const plannedUnit = normalizeUnit(plannedIngredient.unit);
+
+  if (plannedUnit === "g") {
+    return amount;
+  }
+
+  const gramWeight = gramsPerUnit(ingredientId, plannedUnit);
+
+  if (gramWeight) {
+    return amount * gramWeight;
+  }
+
+  if (nutritionDetails.unit === "g") {
+    return amount * nutritionDetails.amount;
+  }
+
+  return undefined;
+};
+
 const scaleNutrition = (plannedIngredient, choice) => {
   const nutritionDetails = getChoiceNutrition(choice);
-  const amount = plannedIngredient.amount === "" ? nutritionDetails.amount : plannedIngredient.amount;
-  const scale = sameUnit(plannedIngredient.unit, nutritionDetails.unit)
-    ? amount / nutritionDetails.amount
-    : 1;
+  const plannedGrams = plannedAmountInGrams(plannedIngredient, choice, nutritionDetails);
+  const scale = plannedGrams && nutritionDetails.unit === "g"
+    ? plannedGrams / nutritionDetails.amount
+    : sameUnit(plannedIngredient.unit, nutritionDetails.unit)
+      ? (plannedIngredient.amount === "" ? nutritionDetails.amount : plannedIngredient.amount) / nutritionDetails.amount
+      : 1;
   const scaledNutrition = {};
 
   Object.entries(nutritionDetails).forEach(([key, value]) => {
