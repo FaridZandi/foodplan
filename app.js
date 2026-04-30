@@ -28,6 +28,8 @@ const summaryItems = [
   },
 ];
 
+const selectedIngredientByLine = new Map();
+
 const createElement = (tagName, options = {}) => {
   const element = document.createElement(tagName);
 
@@ -104,10 +106,40 @@ const addNutrition = (total, nutritionDetails) => ({
   fat: total.fat + nutritionDetails.fat,
 });
 
+const emptyNutrition = () => ({ calories: 0, protein: 0, carbs: 0, fat: 0 });
+
+const getDefaultChoices = (plannedMeal) =>
+  plannedMeal.ingredients.map((plannedIngredient) => plannedIngredient.ingredients[0]);
+
+const getFoodLineKey = (dayIndex, mealKey, ingredientIndex) =>
+  `${dayIndex}:${mealKey}:${ingredientIndex}`;
+
+const getSelectedIngredient = (dayIndex, mealKey, ingredientIndex, plannedIngredient) => {
+  const key = getFoodLineKey(dayIndex, mealKey, ingredientIndex);
+
+  if (!selectedIngredientByLine.has(key)) {
+    selectedIngredientByLine.set(key, plannedIngredient.ingredients[0]);
+  }
+
+  return selectedIngredientByLine.get(key);
+};
+
+const setSelectedIngredient = (dayIndex, mealKey, ingredientIndex, ingredientId) => {
+  selectedIngredientByLine.set(getFoodLineKey(dayIndex, mealKey, ingredientIndex), ingredientId);
+};
+
+const getSelectedChoices = (plannedMeal, dayIndex, mealKey) =>
+  plannedMeal.ingredients.map((plannedIngredient, ingredientIndex) =>
+    getSelectedIngredient(dayIndex, mealKey, ingredientIndex, plannedIngredient),
+  );
+
 const calculateMealNutrition = (plannedMeal, selectedChoices) =>
   plannedMeal.ingredients
     .map((plannedIngredient, index) => scaleNutrition(plannedIngredient, selectedChoices[index]))
-    .reduce(addNutrition, { calories: 0, protein: 0, carbs: 0, fat: 0 });
+    .reduce(addNutrition, emptyNutrition());
+
+const calculateDayNutrition = (mealTotals) =>
+  Object.values(mealTotals).reduce(addNutrition, emptyNutrition());
 
 const formatMacro = (value) => Math.round(value);
 
@@ -146,6 +178,97 @@ const updateNutritionLine = (line, nutritionDetails) => {
   });
 };
 
+const renderDailyTotal = (nutritionDetails) => {
+  const wrapper = createElement("div", { className: "daily-total" });
+  const heading = createElement("strong", {
+    className: "daily-total__title",
+    text: "Daily total",
+  });
+
+  wrapper.append(heading, renderNutritionLine(nutritionDetails));
+
+  return wrapper;
+};
+
+const formatAggregateAmount = (amount) =>
+  Number.isInteger(amount) ? String(amount) : String(Number(amount.toFixed(2)));
+
+const formatAggregateUnit = (amount, unit) => {
+  if (!unit) {
+    return "";
+  }
+
+  return amount === 1 ? normalizeUnit(unit) : `${normalizeUnit(unit)}s`;
+};
+
+const getWeeklyIngredientTotals = () => {
+  const totals = new Map();
+
+  mealPlan.forEach((dayPlan, dayIndex) => {
+    mealTypes.forEach((mealType) => {
+      const plannedMeal = dayPlan.meals[mealType.key];
+
+      plannedMeal.ingredients.forEach((plannedIngredient, ingredientIndex) => {
+        const ingredientId = getSelectedIngredient(dayIndex, mealType.key, ingredientIndex, plannedIngredient);
+        const unit = normalizeUnit(plannedIngredient.unit);
+        const key = `${ingredientId}:${unit}`;
+        const amount = plannedIngredient.amount === "" ? 1 : plannedIngredient.amount;
+        const current = totals.get(key) ?? {
+          ingredientId,
+          unit,
+          amount: 0,
+        };
+
+        current.amount += amount;
+        totals.set(key, current);
+      });
+    });
+  });
+
+  return [...totals.values()].sort((first, second) =>
+    getChoiceName(first.ingredientId).localeCompare(getChoiceName(second.ingredientId)),
+  );
+};
+
+const renderWeeklyIngredientTotals = () => {
+  const mount = document.querySelector("#weekly-ingredient-totals");
+  const table = createElement("table", { className: "weekly-ingredients__table" });
+  const thead = createElement("thead");
+  const headerRow = createElement("tr");
+  const tbody = createElement("tbody");
+
+  ["Ingredient", "Amount", "Category", "Area"].forEach((label) => {
+    headerRow.append(createElement("th", {
+      text: label,
+      attrs: { scope: "col" },
+    }));
+  });
+
+  getWeeklyIngredientTotals().forEach((total) => {
+    const ingredient = getIngredient(total.ingredientId);
+    const row = createElement("tr");
+    const amount = [
+      formatAggregateAmount(total.amount),
+      formatAggregateUnit(total.amount, total.unit),
+    ].filter(Boolean).join(" ");
+
+    row.append(
+      createElement("th", {
+        text: ingredient.name,
+        attrs: { scope: "row" },
+      }),
+      createElement("td", { text: amount }),
+      createElement("td", { text: ingredient.category }),
+      createElement("td", { text: ingredient.groceryArea }),
+    );
+    tbody.append(row);
+  });
+
+  thead.append(headerRow);
+  table.append(thead, tbody);
+  mount.replaceChildren(table);
+};
+
 const renderIngredientChoice = (plannedIngredient, ingredientIndex, selectedChoices, onChange) => {
   const choices = plannedIngredient.ingredients;
   const defaultChoiceName = getChoiceName(choices[0]);
@@ -170,7 +293,7 @@ const renderIngredientChoice = (plannedIngredient, ingredientIndex, selectedChoi
 
   select.addEventListener("change", () => {
     selectedChoices[ingredientIndex] = choices[select.selectedIndex];
-    onChange();
+    onChange(ingredientIndex, choices[select.selectedIndex]);
   });
 
   return select;
@@ -198,21 +321,26 @@ const renderIngredients = (ingredients, selectedChoices, onChange) => {
   return list;
 };
 
-const renderMeal = (plannedMeal) => {
+const renderMeal = (plannedMeal, dayIndex, mealKey, onNutritionChange = () => {}) => {
   const wrapper = createElement("div", { className: "meal" });
   const title = createElement("strong", {
     className: "meal__title",
     text: plannedMeal.title,
   });
-  const selectedChoices = plannedMeal.ingredients.map((plannedIngredient) =>
-    plannedIngredient.ingredients[0],
-  );
+  const selectedChoices = getSelectedChoices(plannedMeal, dayIndex, mealKey);
   const nutritionLine = renderNutritionLine(calculateMealNutrition(plannedMeal, selectedChoices));
   const recalculate = () => {
-    updateNutritionLine(nutritionLine, calculateMealNutrition(plannedMeal, selectedChoices));
+    const updatedNutrition = calculateMealNutrition(plannedMeal, selectedChoices);
+
+    updateNutritionLine(nutritionLine, updatedNutrition);
+    onNutritionChange(updatedNutrition);
+    renderWeeklyIngredientTotals();
   };
 
-  wrapper.append(title, renderIngredients(plannedMeal.ingredients, selectedChoices, recalculate), nutritionLine);
+  wrapper.append(title, renderIngredients(plannedMeal.ingredients, selectedChoices, (ingredientIndex, ingredientId) => {
+    setSelectedIngredient(dayIndex, mealKey, ingredientIndex, ingredientId);
+    recalculate();
+  }), nutritionLine);
 
   if (plannedMeal.note) {
     wrapper.append(createElement("p", { className: "meal__note", text: plannedMeal.note }));
@@ -252,6 +380,7 @@ const renderTable = () => {
       label: mealType.label,
       attrs: { scope: "col" },
     })),
+    { label: "Day total", attrs: { scope: "col" } },
   ].forEach((column) => {
     headFragment.append(
       createElement("th", {
@@ -261,20 +390,36 @@ const renderTable = () => {
     );
   });
 
-  mealPlan.forEach((dayPlan) => {
+  mealPlan.forEach((dayPlan, dayIndex) => {
     const row = createElement("tr");
     const dayHeader = createElement("th", {
       text: dayPlan.day,
       attrs: { scope: "row" },
     });
+    const mealTotals = Object.fromEntries(
+      mealTypes.map((mealType) => {
+        const plannedMeal = dayPlan.meals[mealType.key];
+
+        return [mealType.key, calculateMealNutrition(plannedMeal, getSelectedChoices(plannedMeal, dayIndex, mealType.key))];
+      }),
+    );
+    const dailyTotal = renderDailyTotal(calculateDayNutrition(mealTotals));
+    const dailyTotalLine = dailyTotal.querySelector(".nutrition-line");
 
     row.append(dayHeader);
 
     mealTypes.forEach((mealType) => {
       const cell = createElement("td");
-      cell.append(renderMeal(dayPlan.meals[mealType.key]));
+      cell.append(renderMeal(dayPlan.meals[mealType.key], dayIndex, mealType.key, (updatedNutrition) => {
+        mealTotals[mealType.key] = updatedNutrition;
+        updateNutritionLine(dailyTotalLine, calculateDayNutrition(mealTotals));
+      }));
       row.append(cell);
     });
+
+    const totalCell = createElement("td", { className: "day-total-cell" });
+    totalCell.append(dailyTotal);
+    row.append(totalCell);
 
     bodyFragment.append(row);
   });
@@ -287,14 +432,26 @@ const renderCards = () => {
   const cards = document.querySelector("#meal-cards");
   const fragment = document.createDocumentFragment();
 
-  mealPlan.forEach((dayPlan) => {
+  mealPlan.forEach((dayPlan, dayIndex) => {
     const card = createElement("article", { className: "day-card" });
     const heading = createElement("h2", { text: dayPlan.day });
     const details = createElement("dl");
+    const mealTotals = Object.fromEntries(
+      mealTypes.map((mealType) => {
+        const plannedMeal = dayPlan.meals[mealType.key];
+
+        return [mealType.key, calculateMealNutrition(plannedMeal, getSelectedChoices(plannedMeal, dayIndex, mealType.key))];
+      }),
+    );
+    const dailyTotal = renderDailyTotal(calculateDayNutrition(mealTotals));
+    const dailyTotalLine = dailyTotal.querySelector(".nutrition-line");
 
     mealTypes.forEach((mealType) => {
       const description = createElement("dd");
-      description.append(renderMeal(dayPlan.meals[mealType.key]));
+      description.append(renderMeal(dayPlan.meals[mealType.key], dayIndex, mealType.key, (updatedNutrition) => {
+        mealTotals[mealType.key] = updatedNutrition;
+        updateNutritionLine(dailyTotalLine, calculateDayNutrition(mealTotals));
+      }));
 
       details.append(
         createElement("dt", { text: mealType.label }),
@@ -302,7 +459,7 @@ const renderCards = () => {
       );
     });
 
-    card.append(heading, details);
+    card.append(heading, details, dailyTotal);
     fragment.append(card);
   });
 
@@ -312,3 +469,4 @@ const renderCards = () => {
 renderSummary();
 renderTable();
 renderCards();
+renderWeeklyIngredientTotals();
